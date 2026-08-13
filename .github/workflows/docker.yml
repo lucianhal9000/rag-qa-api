@@ -7,7 +7,27 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest -v
+
   build:
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -29,7 +49,7 @@ jobs:
 
       # The placeholder key is deliberate. /health never calls Groq, so no real
       # credential is needed to prove the container boots and serves. It only has
-      # to be non-empty to clear the startup check in RAGPipeline.__init__.
+      # to be non-empty to clear the startup check in build_default_llm().
       - name: Start container
         run: |
           docker run -d --name rag-qa-api \

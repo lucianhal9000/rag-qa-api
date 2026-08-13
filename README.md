@@ -2,8 +2,13 @@
 
 [![Docker](https://github.com/lucianhal9000/rag-qa-api/actions/workflows/docker.yml/badge.svg)](https://github.com/lucianhal9000/rag-qa-api/actions/workflows/docker.yml)
 
-A production-ready Retrieval-Augmented Generation (RAG) API built with
-**FastAPI**, **LangChain**, **FAISS**, and **Groq (LLaMA 3)**.
+A Retrieval-Augmented Generation (RAG) API built with **FastAPI**,
+**LangChain**, **FAISS**, and **Groq (LLaMA 3)**, containerized and covered by
+a 31-test suite that runs in CI on every push.
+
+See [Scope and limitations](#scope-and-limitations) before treating this as
+something to run in production — it is a portfolio project, and the gaps are
+documented rather than glossed over.
 
 ## Architecture
 
@@ -54,6 +59,46 @@ uvicorn main:app --reload
 
 Open `http://localhost:8000/docs` for the interactive API explorer.
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -v
+```
+
+31 tests, a few seconds, no API key and no network required. The suite
+injects a deterministic hashing embedding and a stub LLM in place of
+sentence-transformers and Groq; FAISS, the text splitter, the LCEL chain, and
+FastAPI routing are all exercised for real.
+
+The fake embedding hashes tokens into fixed buckets rather than returning random
+vectors, so documents sharing words genuinely land near each other. That makes
+retrieval assertions meaningful — the suite can check that a question about
+Redis returns the Redis chunk, not just that *some* chunk came back.
+
+### Defects the suite caught
+
+| Defect | Symptom before the fix |
+|--------|------------------------|
+| Empty upload reached FAISS with zero documents | `IndexError` surfacing to the caller as a 500 instead of a 400 |
+| `os.unlink` ran only on the success path | Failed ingest leaked its temp file onto disk on every attempt |
+| No upload size limit | Whole file read into memory regardless of size |
+| Size cap enforced after reading the body | A 200 MB upload was fully materialized before the 413; uploads now stream to disk in 64 KB chunks and abort one chunk past the 10 MB cap |
+
+## Scope and limitations
+
+Known and deliberate, rather than discovered later:
+
+- **Single shared index.** The pipeline is one process-wide instance, so every
+  caller shares one vector store. Fine for a demo; a real deployment needs
+  per-tenant namespacing.
+- **No persistence.** The FAISS index is in memory, so ingested documents are
+  lost on restart. `FAISS.save_local()` / `load_local()` onto a mounted volume
+  is the fix.
+- **No authentication**, and CORS is open to all origins.
+- **Dependencies are unpinned**, so builds are reproducible only until an
+  upstream release changes behaviour.
+
 ## Run with Docker
 
 ```bash
@@ -82,11 +127,6 @@ docker run -p 8000:8000 --env-file .env rag-qa-api
   API is actually serving.
 - The container runs as a non-root `appuser`.
 
-### Known limitation
-
-The FAISS index lives in memory only, so ingested documents are lost when the
-container restarts. Persisting it via `FAISS.save_local()` / `load_local()` onto a
-mounted volume is the next step.
 
 ## Example Usage
 
