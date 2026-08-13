@@ -1,0 +1,16 @@
+# Test dependencies.
+#
+# Deliberately NOT `-r requirements.txt`: the suite injects fake embeddings and
+# a fake LLM, so torch, sentence-transformers, and langchain-groq are never
+# imported. Omitting them takes the CI test job from minutes to seconds.
+fastapi
+python-multipart
+python-dotenv
+pydantic
+langchain-core
+langchain-community
+langchain-text-splitters
+faiss-cpu
+pypdf
+pytest
+httpx
