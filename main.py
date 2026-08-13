@@ -66,8 +66,14 @@ class QueryResponse(BaseModel):
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
-    return {"status": "ok", "vectorstore_ready": rag.vectorstore is not None}
+    """Liveness and readiness check. Used by the container HEALTHCHECK."""
+    ready = rag.vectorstore is not None
+    return {
+        "status": "ok",
+        "version": app.version,
+        "vectorstore_ready": ready,
+        "indexed_vectors": rag.vectorstore.index.ntotal if ready else 0,
+    }
 
 
 @app.post("/ingest/text", response_model=IngestResponse)

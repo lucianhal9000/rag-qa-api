@@ -17,10 +17,16 @@ class RAGPipeline:
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "GROQ_API_KEY is not set. Copy .env.example to .env and add a key "
+                "from https://console.groq.com"
+            )
         self.llm = ChatGroq(
-           model="llama-3.1-8b-instant",
+            model="llama-3.1-8b-instant",
             temperature=0,
-            api_key=os.getenv("GROQ_API_KEY"),
+            api_key=api_key,
         )
         self.vectorstore = None
         self.chain = None

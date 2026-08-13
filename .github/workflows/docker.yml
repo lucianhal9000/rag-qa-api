@@ -1,0 +1,64 @@
+name: Docker
+
+on:
+  push:
+    branches: [main, docker-setup]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: rag-qa-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The placeholder key is deliberate. /health never calls Groq, so no real
+      # credential is needed to prove the container boots and serves. It only has
+      # to be non-empty to clear the startup check in RAGPipeline.__init__.
+      - name: Start container
+        run: |
+          docker run -d --name rag-qa-api \
+            -p 8000:8000 \
+            -e GROQ_API_KEY=ci-placeholder-key \
+            rag-qa-api:ci
+
+      - name: Wait for the API to respond
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/health > /tmp/health.json; then
+              echo "Healthy after $((i * 5))s"
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Container never served /health within 300s"
+          exit 1
+
+      - name: Verify health payload
+        run: |
+          grep -q '"status":"ok"' /tmp/health.json
+          grep -q '"indexed_vectors":0' /tmp/health.json
+
+      - name: Container logs
+        if: always()
+        run: docker logs rag-qa-api
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f rag-qa-api
