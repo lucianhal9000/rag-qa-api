@@ -19,6 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+CHUNK_BYTES = 64 * 1024
 ALLOWED_EXTENSIONS = {".txt", ".pdf"}
 
 
@@ -81,6 +82,38 @@ class QueryResponse(BaseModel):
 
 # ---------- Routes ----------
 
+async def _spool_upload(file: UploadFile, ext: str) -> str:
+    """Stream an upload to a temp file, aborting as soon as it exceeds the cap.
+
+    Reading the body in one call would materialize the whole upload in memory
+    before the size check could run, so an oversized request could exhaust a
+    worker before being rejected. Streaming holds one chunk at a time and stops
+    at the first byte past the limit.
+
+    The file is closed before unlinking because Windows refuses to delete an
+    open handle.
+    """
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+    tmp_path = tmp.name
+    size = 0
+    try:
+        while chunk := await file.read(CHUNK_BYTES):
+            size += len(chunk)
+            if size > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail="File exceeds the 10 MB limit.")
+            tmp.write(chunk)
+    except BaseException:
+        tmp.close()
+        os.unlink(tmp_path)
+        raise
+    tmp.close()
+
+    if size == 0:
+        os.unlink(tmp_path)
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    return tmp_path
+
+
 @app.get("/health")
 async def health(rag: RAGPipeline = Depends(get_rag)):
     """Liveness and readiness check. Used by the container HEALTHCHECK."""
@@ -114,15 +147,7 @@ async def ingest_file(file: UploadFile = File(...), rag: RAGPipeline = Depends(g
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Only .txt and .pdf files are supported.")
 
-    contents = await file.read()
-    if len(contents) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File exceeds the 10 MB limit.")
-    if not contents:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-        tmp.write(contents)
-        tmp_path = tmp.name
+    tmp_path = await _spool_upload(file, ext)
     try:
         chunks = rag.ingest_file(tmp_path)
     except EmptyDocumentError:

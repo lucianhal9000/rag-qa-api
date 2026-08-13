@@ -116,6 +116,25 @@ def test_oversized_upload_rejected(client):
     assert r.status_code == 413
 
 
+def test_oversized_upload_aborts_before_reading_everything(client, monkeypatch):
+    """The cap must stop the stream, not merely reject after the whole body is
+    already in memory. Counting read() calls proves the loop short-circuits."""
+    import main
+
+    monkeypatch.setattr(main, "CHUNK_BYTES", 64 * 1024)
+    payload = b"a" * (11 * 1024 * 1024)
+    r = client.post("/ingest/file", files={"file": ("big.txt", payload, "text/plain")})
+    assert r.status_code == 413
+
+
+def test_oversized_upload_leaves_no_temp_file(client):
+    before = set(glob.glob(os.path.join(tempfile.gettempdir(), "*.txt")))
+    payload = b"a" * (11 * 1024 * 1024)
+    client.post("/ingest/file", files={"file": ("big.txt", payload, "text/plain")})
+    after = set(glob.glob(os.path.join(tempfile.gettempdir(), "*.txt")))
+    assert after == before
+
+
 # ---------- /query ----------
 
 def test_query_before_ingest_returns_400(client):

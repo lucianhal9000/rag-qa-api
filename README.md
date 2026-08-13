@@ -4,7 +4,7 @@
 
 A Retrieval-Augmented Generation (RAG) API built with **FastAPI**,
 **LangChain**, **FAISS**, and **Groq (LLaMA 3)**, containerized and covered by
-a 29-test suite that runs in CI on every push.
+a 31-test suite that runs in CI on every push.
 
 See [Scope and limitations](#scope-and-limitations) before treating this as
 something to run in production — it is a portfolio project, and the gaps are
@@ -66,7 +66,7 @@ pip install -r requirements-dev.txt
 pytest -v
 ```
 
-29 tests, roughly half a second, no API key and no network required. The suite
+31 tests, a few seconds, no API key and no network required. The suite
 injects a deterministic hashing embedding and a stub LLM in place of
 sentence-transformers and Groq; FAISS, the text splitter, the LCEL chain, and
 FastAPI routing are all exercised for real.
@@ -82,7 +82,8 @@ Redis returns the Redis chunk, not just that *some* chunk came back.
 |--------|------------------------|
 | Empty upload reached FAISS with zero documents | `IndexError` surfacing to the caller as a 500 instead of a 400 |
 | `os.unlink` ran only on the success path | Failed ingest leaked its temp file onto disk on every attempt |
-| No upload size limit | Whole file read into memory regardless of size; now capped at 10 MB with a 413 |
+| No upload size limit | Whole file read into memory regardless of size |
+| Size cap enforced after reading the body | A 200 MB upload was fully materialized before the 413; uploads now stream to disk in 64 KB chunks and abort one chunk past the 10 MB cap |
 
 ## Scope and limitations
 
