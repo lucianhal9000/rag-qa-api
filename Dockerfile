@@ -27,7 +27,7 @@ RUN pip install -r requirements.txt
 # and the container fails outright on a host with no outbound internet.
 RUN python -c "from sentence_transformers import SentenceTransformer; \
 SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
-
+ENV HF_HUB_OFFLINE=1
 COPY . .
 
 RUN useradd --create-home --uid 1000 appuser \
