@@ -1,0 +1,54 @@
+# Frozen eval corpus. Do not change entries once a baseline is recorded —
+# add new ones instead, and re-run the baseline if you do.
+#
+# Hashes are pinned. If fetch_corpus.py ever reports a mismatch on an arXiv
+# entry, the authors uploaded a new revision: delete that file from
+# evals/corpus/, re-fetch, update the hash here, and re-run your baseline.
+
+documents:
+  # --- reStructuredText: identifier-heavy, exact-match retrieval ---
+  - id: pep-0008
+    url: https://raw.githubusercontent.com/python/peps/main/peps/pep-0008.rst
+    format: rst
+    sha256: "6028935c6cb2c674d5f4d512c7ba6ce2923713b1c47ce1a78adc690db817fc5d"
+
+  - id: pep-0484
+    url: https://raw.githubusercontent.com/python/peps/main/peps/pep-0484.rst
+    format: rst
+    sha256: "ddfe61c36a61b3ba926aaf23f4934ab17493a1cb7ea5d45497235b552c4a9f7c"
+
+  - id: pep-0572
+    url: https://raw.githubusercontent.com/python/peps/main/peps/pep-0572.rst
+    format: rst
+    sha256: "abf5401ec523a03d59a6f3173842784f426bfd49d8b0a87a512646557bcef8b1"
+
+  - id: pep-0703
+    url: https://raw.githubusercontent.com/python/peps/main/peps/pep-0703.rst
+    format: rst
+    sha256: "8dfe19b2ab3b0ee783f922b533fed7b8018d6d90f3cec5534fd7baaa283a3470"
+
+  - id: pep-0621
+    url: https://raw.githubusercontent.com/python/peps/main/peps/pep-0621.rst
+    format: rst
+    sha256: "8710ea6fcc2f5d19571ea7b2610e5c2fbc93d44051c1e5669f40a685ab4bb49e"
+
+  # --- PDFs: layout, tables, multi-column extraction ---
+  - id: rag-lewis-2020
+    url: https://arxiv.org/pdf/2005.11401
+    format: pdf
+    sha256: "23e3249e9a1e75418d82efecab0ea8c4d033b89c93742f63208d47ce01f21233"
+
+  - id: dpr-karpukhin-2020
+    url: https://arxiv.org/pdf/2004.04906
+    format: pdf
+    sha256: "3e67fc1a9977715acf722d85f0b7d124b03715e975f6310a4d6c12094190912f"
+
+  - id: lost-in-the-middle-2023
+    url: https://arxiv.org/pdf/2307.03172
+    format: pdf
+    sha256: "653b29619eae2ae4b361d7bdcdc06db4bedcb1b0eabe31814036beca8c1af0b1"
+
+  - id: attention-2017
+    url: https://arxiv.org/pdf/1706.03762
+    format: pdf
+    sha256: "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697"
