@@ -85,6 +85,19 @@ Redis returns the Redis chunk, not just that *some* chunk came back.
 | No upload size limit | Whole file read into memory regardless of size |
 | Size cap enforced after reading the body | A 200 MB upload was fully materialized before the 413; uploads now stream to disk in 64 KB chunks and abort one chunk past the 10 MB cap |
 
+### Defects only running the container caught
+
+The test suite is green without a network or an API key, and CI builds the image
+on every push — but neither exercises a *cold start of the real image*. Running
+it locally surfaced a defect that no green build could have shown:
+
+The embedding model is baked in at build time, but `sentence-transformers` still
+issued around forty `HEAD` requests to `huggingface.co` on every boot to
+revalidate that cache, complete with an unauthenticated-rate-limit warning. The
+weights loaded instantly from disk; the container simply refused to start
+without internet anyway. `HF_HUB_OFFLINE=1` closed the gap — see
+[Image notes](#image-notes).
+
 ## Scope and limitations
 
 Known and deliberate, rather than discovered later:
@@ -95,7 +108,19 @@ Known and deliberate, rather than discovered later:
 - **No persistence.** The FAISS index is in memory, so ingested documents are
   lost on restart. `FAISS.save_local()` / `load_local()` onto a mounted volume
   is the fix.
+- **`faiss-cpu` falls back to the generic kernel.** The wheel ships without
+  `swigfaiss_avx2`, so similarity search runs unvectorized. Immaterial at demo
+  corpus sizes, measurable at scale.
 - **No authentication**, and CORS is open to all origins.
+- **`GROQ_API_KEY` is required at startup, not on first request.** Without it
+  the app raises during FastAPI's `lifespan` and the container exits with code
+  3. This is deliberate fail-fast: a process that boots and then fails every
+  query is harder to diagnose than one that refuses to start.
+- **`/health` is a liveness probe, not a readiness probe.** It reports `ok`
+  even with an empty index. `vectorstore_ready` and `indexed_vectors` are
+  exposed in the response body so a caller can distinguish the two, but the
+  status does not gate on them — an empty index is a valid state, not a
+  failure.
 - **Dependencies are unpinned**, so builds are reproducible only until an
   upstream release changes behaviour.
 
@@ -117,16 +142,22 @@ docker run -p 8000:8000 --env-file .env rag-qa-api
 ### Image notes
 
 - The `all-MiniLM-L6-v2` embedding model is downloaded **at build time**, not at
-  container start. Without this the first request after every cold start waits on
-  a ~90MB HuggingFace download, and the container cannot start at all on a host
-  with no outbound internet.
+  container start, and `HF_HUB_OFFLINE=1` stops sentence-transformers
+  revalidating it against the Hub on every boot. The image is therefore
+  genuinely self-contained — it starts with no outbound internet at all:
+
+  ```bash
+  docker run --rm --network none --env-file .env rag-qa-api
+  ```
+
+  Queries still need network for the Groq call; only the embedding path is
+  offline.
 - `torch` is installed from the CPU-only wheel index. The default PyPI wheel
   bundles CUDA libraries that are dead weight here and add roughly 2.5GB.
 - A `HEALTHCHECK` polls `/health` every 30s, with a 40s start period covering
   model load into memory. `docker ps` reports the container as `healthy` once the
   API is actually serving.
 - The container runs as a non-root `appuser`.
-
 
 ## Example Usage
 
